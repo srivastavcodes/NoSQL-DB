@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="GoLinterSettings">
+    <option name="enabledLinters">
+      <list>
+        <option value="gocognit" />
+        <option value="mirror" />
+        <option value="govet" />
+        <option value="dupl" />
+        <option value="gocritic" />
+        <option value="staticcheck" />
+        <option value="goconst" />
+        <option value="zerologlint" />
+        <option value="perfsprint" />
+      </list>
+    </option>
+    <option name="linterSelected" value="true" />
+  </component>
+</project>
