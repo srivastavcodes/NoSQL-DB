@@ -6,18 +6,18 @@ const initialPage = 0
 
 type Freelist struct {
 	// holds the maximum pages allocated. maxPage*pageSize=fileSize
-	maxPage PageNum
+	maxPage pagenum
 	// releasedPages are pages that were previously allocated but are now free
-	releasedPages []PageNum
+	releasedPages []pagenum
 }
 
 func newFreeList() *Freelist {
 	return &Freelist{maxPage: initialPage,
-		releasedPages: make([]PageNum, 0),
+		releasedPages: make([]pagenum, 0),
 	}
 }
 
-func (fl *Freelist) GetNextPage() PageNum {
+func (fl *Freelist) getNextPage() pagenum {
 	if len(fl.releasedPages) != 0 {
 		pageId := fl.releasedPages[len(fl.releasedPages)-1]
 		fl.releasedPages = fl.releasedPages[:len(fl.releasedPages)-1]
@@ -27,7 +27,7 @@ func (fl *Freelist) GetNextPage() PageNum {
 	return fl.maxPage
 }
 
-func (fl *Freelist) ReleasePage(page PageNum) {
+func (fl *Freelist) ReleasePage(page pagenum) {
 	fl.releasedPages = append(fl.releasedPages, page)
 }
 
@@ -52,14 +52,14 @@ func (fl *Freelist) serialize(buf []byte) []byte {
 func (fl *Freelist) deserialize(buf []byte) {
 	pos := 0
 
-	fl.maxPage = PageNum(binary.LittleEndian.Uint16(buf[pos:]))
+	fl.maxPage = pagenum(binary.LittleEndian.Uint16(buf[pos:]))
 	pos += 2
-	releasedPageCount := int(PageNum(binary.LittleEndian.Uint16(buf[pos:])))
+	releasedPageCount := int(pagenum(binary.LittleEndian.Uint16(buf[pos:])))
 	pos += 2
 	for i := 0; i < releasedPageCount; i++ {
 		fl.releasedPages = append(
 			fl.releasedPages,
-			PageNum(binary.LittleEndian.Uint64(buf[pos:])),
+			pagenum(binary.LittleEndian.Uint64(buf[pos:])),
 		)
 		pos += pageNumSize
 	}

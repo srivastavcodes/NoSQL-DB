@@ -1,32 +1,17 @@
 package main
 
+import "fmt"
+
 func main() {
-	dal, _ := NewDataAccessLayer("db.db")
+	dal, _ := NewDataAccessLayer("./mainTest")
 
-	pg := dal.AllocateEmptyPage()
-	pg.Num = dal.Freelist.GetNextPage()
-	copy(pg.Data, "data")
+	node, _ := dal.getNode(dal.Meta.Root)
+	node.DALayer = dal
 
-	// commit the data
-	_ = dal.WritePage(pg)
-	_, _ = dal.WriteFreeList()
+	index, containingNode, _ := node.findKey([]byte("Key1"))
+	res := containingNode.items[index]
 
+	fmt.Printf("key is: %s, value is: %s", res.key, res.val)
 	// close the db
 	_ = dal.Close()
-
-	// freelist state should be saved, so we expect it to write
-	// to page 3 instead of overwriting page 2
-	dal, _ = NewDataAccessLayer("db.db")
-	pg = dal.AllocateEmptyPage()
-	pg.Num = dal.Freelist.GetNextPage()
-	copy(pg.Data, "data3")
-	_ = dal.WritePage(pg)
-
-	// create the page and free it so the released pages will be
-	// updated
-	pageNum := dal.Freelist.GetNextPage()
-	dal.Freelist.ReleasePage(pageNum)
-
-	// commit above change
-	_, _ = dal.WriteFreeList()
 }

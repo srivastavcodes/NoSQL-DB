@@ -6,14 +6,14 @@ import (
 	"os"
 )
 
-type PageNum int64
+type pagenum int64
 
 type Page struct {
-	Num  PageNum
+	Num  pagenum
 	Data []byte
 }
 
-type DataAccessLayer struct {
+type DALayer struct {
 	Freelist *Freelist
 	Meta     *Metadata
 
@@ -21,10 +21,10 @@ type DataAccessLayer struct {
 	pageSize int
 }
 
-func NewDataAccessLayer(path string) (*DataAccessLayer, error) {
-	dal := &DataAccessLayer{
+func NewDataAccessLayer(path string) (*DALayer, error) {
+	dal := &DALayer{
 		Meta:     NewEmptyMeta(),
-		pageSize: os.Getpagesize(),
+		pageSize: 4096,
 	}
 
 	if _, err := os.Stat(path); err == nil {
@@ -51,7 +51,7 @@ func NewDataAccessLayer(path string) (*DataAccessLayer, error) {
 			return nil, err
 		}
 		dal.Freelist = newFreeList()
-		dal.Meta.FreeListPage = dal.Freelist.GetNextPage()
+		dal.Meta.FreeListPage = dal.Freelist.getNextPage()
 
 		_, err = dal.WriteFreeList()
 		if err != nil {
@@ -64,7 +64,7 @@ func NewDataAccessLayer(path string) (*DataAccessLayer, error) {
 	return dal, nil
 }
 
-func (dal *DataAccessLayer) Close() error {
+func (dal *DALayer) Close() error {
 	if dal.file != nil {
 		err := dal.file.Close()
 		if err != nil {
@@ -75,13 +75,13 @@ func (dal *DataAccessLayer) Close() error {
 	return nil
 }
 
-func (dal *DataAccessLayer) AllocateEmptyPage() *Page {
+func (dal *DALayer) AllocateEmptyPage() *Page {
 	return &Page{
 		Data: make([]byte, dal.pageSize),
 	}
 }
 
-func (dal *DataAccessLayer) ReadPage(pageNum PageNum) (*Page, error) {
+func (dal *DALayer) ReadPage(pageNum pagenum) (*Page, error) {
 	pg := dal.AllocateEmptyPage()
 
 	offset := int(pageNum) * dal.pageSize
@@ -93,13 +93,13 @@ func (dal *DataAccessLayer) ReadPage(pageNum PageNum) (*Page, error) {
 	return pg, nil
 }
 
-func (dal *DataAccessLayer) WritePage(pg *Page) error {
+func (dal *DALayer) WritePage(pg *Page) error {
 	offset := int64(pg.Num) * int64(dal.pageSize)
 	_, err := dal.file.WriteAt(pg.Data, offset)
 	return err
 }
 
-func (dal *DataAccessLayer) writeMetadata(meta *Metadata) (*Page, error) {
+func (dal *DALayer) writeMetadata(meta *Metadata) (*Page, error) {
 	pg := dal.AllocateEmptyPage()
 
 	pg.Num = metaPageNum
@@ -112,7 +112,7 @@ func (dal *DataAccessLayer) writeMetadata(meta *Metadata) (*Page, error) {
 	return pg, nil
 }
 
-func (dal *DataAccessLayer) readMetadata() (*Metadata, error) {
+func (dal *DALayer) readMetadata() (*Metadata, error) {
 	pg, err := dal.ReadPage(metaPageNum)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (dal *DataAccessLayer) readMetadata() (*Metadata, error) {
 	return meta, nil
 }
 
-func (dal *DataAccessLayer) readFreeList() (*Freelist, error) {
+func (dal *DALayer) readFreeList() (*Freelist, error) {
 	pg, err := dal.ReadPage(dal.Meta.FreeListPage)
 	if err != nil {
 		return nil, err
@@ -134,7 +134,7 @@ func (dal *DataAccessLayer) readFreeList() (*Freelist, error) {
 	return freelist, nil
 }
 
-func (dal *DataAccessLayer) WriteFreeList() (*Page, error) {
+func (dal *DALayer) WriteFreeList() (*Page, error) {
 	pg := dal.AllocateEmptyPage()
 
 	pg.Num = dal.Meta.FreeListPage
@@ -146,4 +146,39 @@ func (dal *DataAccessLayer) WriteFreeList() (*Page, error) {
 	}
 	dal.Meta.FreeListPage = pg.Num
 	return pg, nil
+}
+
+func (dal *DALayer) getNode(pgnum pagenum) (*Node, error) {
+	pg, err := dal.ReadPage(pgnum)
+	if err != nil {
+		return nil, err
+	}
+	node := NewEmptyNode()
+
+	node.deserialize(pg.Data)
+	node.pageNum = pgnum
+	return node, nil
+}
+
+func (dal *DALayer) writeNode(node *Node) (*Node, error) {
+	pg := dal.AllocateEmptyPage()
+
+	if node.pageNum == 0 {
+		pg.Num = dal.Freelist.getNextPage()
+		node.pageNum = pg.Num
+	} else {
+		pg.Num = node.pageNum
+	}
+	pg.Data = node.serialize(pg.Data)
+
+	err := dal.WritePage(pg)
+	if err != nil {
+		return nil, err
+	} else {
+		return node, nil
+	}
+}
+
+func (dal *DALayer) deleteNode(pgnum pagenum) {
+	dal.Freelist.ReleasePage(pgnum)
 }
